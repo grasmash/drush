@@ -201,14 +201,14 @@ class ConfigLocator
     }
 
     /**
-     * Unused. See PreflightArgs::applyToConfig() instead.
+     *  Add config paths defined in preflight configuration.
      *
-     * @param array $preflightConfig
+     * @param array $paths
      * @return $this
      */
-    public function addPreflightConfig($preflightConfig)
+    public function addPreflightConfigFile($filepath)
     {
-        $this->config->addContext(self::PREFLIGHT_CONTEXT, $preflightConfig);
+        $this->addConfigFile(self::PREFLIGHT_CONTEXT, $filepath);
         return $this;
     }
 
@@ -329,15 +329,14 @@ class ConfigLocator
      * @param string[] $paths List of paths to search for configuration.
      * @return $this
      */
-    public function addConfigPaths($contextName, $paths)
+    public function addConfigPaths($contextName, $paths, $candidates = [
+        'drush.yml',
+        'config/drush.yml',
+    ])
     {
         $loader = new YamlConfigLoader();
-        $candidates = [
-            'drush.yml',
-            'config/drush.yml',
-        ];
 
-        // Make all of the config values parsed so far available in evaluations
+        // Make all of the config values parsed so far available in evaluations.
         $reference = $this->config()->export();
 
         $processor = new ConfigProcessor();
@@ -351,6 +350,16 @@ class ConfigLocator
         return $this;
     }
 
+    public function addConfigFile($contextName, $filepaths) {
+        foreach ($filepaths as $filepath) {
+            $path_parts = pathinfo($filepath);
+            $filename = $path_parts['basename'];
+            $path = $path_parts['dirname'];
+            $this->addConfigPaths($contextName, [ $path ], [ $filename ]);
+        }
+
+    }
+
     /**
      * Worker function for addConfigPaths
      *
@@ -362,6 +371,19 @@ class ConfigLocator
     protected function addConfigCandidates(ConfigProcessor $processor, ConfigLoaderInterface $loader, $paths, $candidates)
     {
         $configFiles = $this->identifyCandidates($paths, $candidates);
+        $this->addConfigFiles($processor, $loader, $configFiles);
+    }
+
+    /**
+     * @param \Consolidation\Config\Loader\ConfigProcessor $processor
+     * @param \Consolidation\Config\Loader\ConfigLoaderInterface $loader
+     * @param $configFiles
+     */
+    protected function addConfigFiles(
+        ConfigProcessor $processor,
+        ConfigLoaderInterface $loader,
+        $configFiles
+    ) {
         foreach ($configFiles as $configFile) {
             $processor->extend($loader->load($configFile));
             $this->configFilePaths[] = $configFile;
